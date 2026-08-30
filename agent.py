@@ -53,6 +53,7 @@ def consultar_sla_incidente(state: IncidentState):
 def decidir_fluxo(state: IncidentState):
     if state["criticidade"].strip().lower() in ["alta", "crítica", "critica"]:
         return "priorizar_incidente"
+
     return "gerar_diagnostico"
 
 
@@ -99,7 +100,7 @@ workflow.add_conditional_edges(
     "consolidar_analise",
     decidir_fluxo,
     {
-        "consolidar_analise": "priorizar_incidente",
+       "priorizar_incidente": "priorizar_incidente",
         "gerar_diagnostico": "gerar_diagnostico",
     },
 )
