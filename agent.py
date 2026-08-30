@@ -58,16 +58,16 @@ def decidir_fluxo(state: IncidentState):
 
 
 def consolidar_analise(state: IncidentState):
-    print("4. Consolidando análise...")
+    print("5. Consolidando análise...")
     return state
 
 def priorizar_incidente(state: IncidentState):
-    print("5. Priorizando incidente crítico...")
+    print("6. Priorizando incidente crítico...")
     return {}
 
 
 def gerar_diagnostico(state: IncidentState):
-    print("5. Gerando diagnóstico...")
+    print("7. Gerando diagnóstico...")
     state["diagnostico"] = (
         f"Incidente: {state['incidente']} | "
         f"Criticidade: {state['criticidade']} | "
