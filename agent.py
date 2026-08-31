@@ -1,72 +1,171 @@
 from typing import TypedDict
+import json
+import time
+from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
+from dotenv import load_dotenv
+from tools import consultar_sla
+load_dotenv()
+llm = ChatGroq(
+    model="openai/gpt-oss-20b",
+    temperature=0,
+    timeout=30,
+    max_retries=2,
+)
+
+def log_evento(evento: str, detalhes: dict):
+    registro = {
+        "evento": evento,
+        "timestamp": time.time(),
+        "detalhes": detalhes,
+    }
+    print(json.dumps(registro, ensure_ascii=False))
 
 
 class IncidentState(TypedDict):
     incidente: str
     criticidade: str
     risco: str
+    sla: str
+    historico: list[str]
     diagnostico: str
 
 
+def validar_entrada(texto: str):
+    termos_bloqueados = [
+        "ignore as instruções",
+        "revele a chave",
+        "groq_api_key",
+    ]
+    texto_normalizado = texto.lower()
+    return not any(
+        termo in texto_normalizado
+        for termo in termos_bloqueados
+    )
+
 def analisar_incidente(state: IncidentState):
     print("1. Analisando incidente...")
-    return state
+    inicio = time.time()
+    log_evento("analise_iniciada", {"incidente": state["incidente"]})
 
+    if not validar_entrada(state["incidente"]):
+        raise ValueError("Entrada bloqueada por regra de segurança.")
+
+    state["historico"].append(state["incidente"])
+    log_evento("tempo_analise", {"segundos": round(time.time() - inicio, 4)})
+    return state
 
 def avaliar_criticidade(state: IncidentState):
     print("2. Avaliando criticidade...")
-    state["criticidade"] = "Em análise"
-    return state
 
+    try:
+        resposta = llm.invoke(
+            f"Classifique a criticidade deste incidente como Baixa, Média, Alta ou Crítica. "
+            f"Responda somente com uma palavra, sem justificativa: {state['incidente']}"
+        )
+        return {"criticidade": resposta.content}
+
+    except Exception as erro:
+        log_evento("erro_llm_criticidade", {"erro": str(erro)})
+        return {"criticidade": "Média"}
 
 def avaliar_risco(state: IncidentState):
     print("3. Avaliando risco...")
-    state["risco"] = "Em análise"
-    return state
+
+    try:
+        resposta = llm.invoke(
+            f"Classifique o risco deste incidente como Baixo, Médio, Alto ou Crítico. "
+            f"Responda somente com a classificação: {state['incidente']}"
+        )
+        return {"risco": resposta.content}
+
+    except Exception as erro:
+        log_evento("erro_llm_risco", {"erro": str(erro)})
+        return {"risco": "Médio"}
+    
+def consultar_sla_incidente(state: IncidentState):
+    print("4. Consultando SLA...")
+    resultado = consultar_sla(state["criticidade"])
+
+    if not resultado["sucesso"]:
+        return {"sla": "SLA não encontrado"}
+
+    return {"sla": resultado["sla"]}
+
+
+def decidir_fluxo(state: IncidentState):
+    if state["criticidade"].strip().lower() in ["alta", "crítica", "critica"]:
+        return "priorizar_incidente"
+
+    return "gerar_diagnostico"
 
 
 def consolidar_analise(state: IncidentState):
-    print("4. Consolidando análise...")
+    print("5. Consolidando análise...")
     return state
+
+def priorizar_incidente(state: IncidentState):
+    print("6. Priorizando incidente crítico...")
+    return {}
 
 
 def gerar_diagnostico(state: IncidentState):
-    print("5. Gerando diagnóstico...")
+    print("7. Gerando diagnóstico...")
     state["diagnostico"] = (
         f"Incidente: {state['incidente']} | "
         f"Criticidade: {state['criticidade']} | "
         f"Risco: {state['risco']}"
-    )
+        f" | SLA: {state['sla']}"
+          )
     return state
 
+memory = MemorySaver()
 
 workflow = StateGraph(IncidentState)
 
 workflow.add_node("analisar_incidente", analisar_incidente)
 workflow.add_node("avaliar_criticidade", avaliar_criticidade)
 workflow.add_node("avaliar_risco", avaliar_risco)
+workflow.add_node("consultar_sla", consultar_sla_incidente)
 workflow.add_node("consolidar_analise", consolidar_analise)
+workflow.add_node("priorizar_incidente", priorizar_incidente)
 workflow.add_node("gerar_diagnostico", gerar_diagnostico)
 
 workflow.set_entry_point("analisar_incidente")
 
 workflow.add_edge("analisar_incidente", "avaliar_criticidade")
-workflow.add_edge("avaliar_criticidade", "avaliar_risco")
-workflow.add_edge("avaliar_risco", "consolidar_analise")
-workflow.add_edge("consolidar_analise", "gerar_diagnostico")
+workflow.add_edge("analisar_incidente", "avaliar_risco")
+
+workflow.add_edge("avaliar_criticidade", "consultar_sla")
+workflow.add_edge(["consultar_sla", "avaliar_risco"], "consolidar_analise")
+
+workflow.add_conditional_edges(
+    "consolidar_analise",
+    decidir_fluxo,
+    {
+       "priorizar_incidente": "priorizar_incidente",
+        "gerar_diagnostico": "gerar_diagnostico",
+    },
+)
+workflow.add_edge("priorizar_incidente", "gerar_diagnostico")
 workflow.add_edge("gerar_diagnostico", END)
 
-app = workflow.compile()
+app = workflow.compile(checkpointer=memory)
 if __name__ == "__main__":
     estado_inicial = {
         "incidente": "Erro 500 na API de usuários com timeout após 30 segundos.",
         "criticidade": "",
         "risco": "",
+        "sla": "",
+        "historico": [],
         "diagnostico": "",
     }
 
-    resultado = app.invoke(estado_inicial)
+    config = {"configurable": {"thread_id": "incidente-001"}}
+
+    resultado = app.invoke(estado_inicial, config=config)
 
     print("\nResultado final:")
     print(resultado["diagnostico"])
+    print("Histórico:", resultado["historico"])
