@@ -1,3 +1,7 @@
+import os
+
+os.environ["GROQ_API_KEY"] = "chave-teste-ci"
+
 from agent import validar_entrada
 
 
