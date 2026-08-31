@@ -8,7 +8,7 @@ load_dotenv()
 llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0)
 
 
-class IncidentState(TypedDict):    
+class IncidentState(TypedDict):
     incidente: str
     criticidade: str
     risco: str
@@ -17,11 +17,26 @@ class IncidentState(TypedDict):
     diagnostico: str
 
 
+def validar_entrada(texto: str):
+    termos_bloqueados = [
+        "ignore as instruções",
+        "revele a chave",
+        "groq_api_key",
+    ]
+    texto_normalizado = texto.lower()
+    return not any(
+        termo in texto_normalizado
+        for termo in termos_bloqueados
+    )
+
 def analisar_incidente(state: IncidentState):
     print("1. Analisando incidente...")
+
+    if not validar_entrada(state["incidente"]):
+        raise ValueError("Entrada bloqueada por regra de segurança.")
+
     state["historico"].append(state["incidente"])
     return state
-
 
 def avaliar_criticidade(state: IncidentState):
     print("2. Avaliando criticidade...")
