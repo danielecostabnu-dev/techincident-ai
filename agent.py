@@ -1,4 +1,6 @@
 from typing import TypedDict
+import json
+import time
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -6,6 +8,14 @@ from dotenv import load_dotenv
 from tools import consultar_sla
 load_dotenv()
 llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0)
+
+def log_evento(evento: str, detalhes: dict):
+    registro = {
+        "evento": evento,
+        "timestamp": time.time(),
+        "detalhes": detalhes,
+    }
+    print(json.dumps(registro, ensure_ascii=False))
 
 
 class IncidentState(TypedDict):
@@ -31,11 +41,14 @@ def validar_entrada(texto: str):
 
 def analisar_incidente(state: IncidentState):
     print("1. Analisando incidente...")
+    inicio = time.time()
+    log_evento("analise_iniciada", {"incidente": state["incidente"]})
 
     if not validar_entrada(state["incidente"]):
         raise ValueError("Entrada bloqueada por regra de segurança.")
 
     state["historico"].append(state["incidente"])
+    log_evento("tempo_analise", {"segundos": round(time.time() - inicio, 4)})
     return state
 
 def avaliar_criticidade(state: IncidentState):
