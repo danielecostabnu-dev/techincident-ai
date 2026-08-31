@@ -7,7 +7,12 @@ from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 from tools import consultar_sla
 load_dotenv()
-llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0)
+llm = ChatGroq(
+    model="openai/gpt-oss-20b",
+    temperature=0,
+    timeout=30,
+    max_retries=2,
+)
 
 def log_evento(evento: str, detalhes: dict):
     registro = {
@@ -53,21 +58,32 @@ def analisar_incidente(state: IncidentState):
 
 def avaliar_criticidade(state: IncidentState):
     print("2. Avaliando criticidade...")
-    resposta = llm.invoke(
-    f"Classifique a criticidade deste incidente como Baixa, Média, Alta ou Crítica. "
-    f"Responda somente com uma palavra, sem justificativa: {state['incidente']}"
-)
-    return {"criticidade": resposta.content}
 
+    try:
+        resposta = llm.invoke(
+            f"Classifique a criticidade deste incidente como Baixa, Média, Alta ou Crítica. "
+            f"Responda somente com uma palavra, sem justificativa: {state['incidente']}"
+        )
+        return {"criticidade": resposta.content}
+
+    except Exception as erro:
+        log_evento("erro_llm_criticidade", {"erro": str(erro)})
+        return {"criticidade": "Média"}
 
 def avaliar_risco(state: IncidentState):
     print("3. Avaliando risco...")
-    resposta = llm.invoke(
-        f"Classifique o risco deste incidente como Baixo, Médio, Alto ou Crítico. "
-        f"Responda somente com a classificação: {state['incidente']}"
-    )
-    return {"risco": resposta.content}
 
+    try:
+        resposta = llm.invoke(
+            f"Classifique o risco deste incidente como Baixo, Médio, Alto ou Crítico. "
+            f"Responda somente com a classificação: {state['incidente']}"
+        )
+        return {"risco": resposta.content}
+
+    except Exception as erro:
+        log_evento("erro_llm_risco", {"erro": str(erro)})
+        return {"risco": "Médio"}
+    
 def consultar_sla_incidente(state: IncidentState):
     print("4. Consultando SLA...")
     resultado = consultar_sla(state["criticidade"])
