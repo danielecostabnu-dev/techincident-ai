@@ -28,5 +28,5 @@ jobs:
       - name: Executar testes
         run: python -m pytest
 
-              - name: Validar sintaxe do projeto
+      - name: Validar sintaxe do projeto
         run: python -m compileall agent.py tools.py tests
