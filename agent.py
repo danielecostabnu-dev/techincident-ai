@@ -24,13 +24,17 @@ def log_evento(evento: str, detalhes: dict):
 
 
 class IncidentState(TypedDict):
-    incidente: str
+    titulo: str
+    descricao: str
+    categoria: str
     criticidade: str
     risco: str
     sla: str
     historico: list[str]
+    resumo: str
+    acao_sugerida: str
+    revisao_humana: bool
     diagnostico: str
-
 
 def validar_entrada(texto: str):
     termos_bloqueados = [
