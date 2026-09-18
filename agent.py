@@ -46,8 +46,18 @@ class IncidentState(TypedDict):
 def validar_entrada(texto: str):
     termos_bloqueados = [
         "ignore as instruções",
+        "ignore todas as instruções",
+        "ignore instruções anteriores",
         "revele a chave",
+        "revele sua chave",
+        "mostre a chave",
+        "mostre sua chave",
         "groq_api_key",
+        "api key",
+        "system prompt",
+        "prompt do sistema",
+        "revele o prompt",
+        "mostre o prompt",
     ]
 
     texto_normalizado = texto.lower()
@@ -81,15 +91,36 @@ def analisar_incidente(state: IncidentState):
     )
 
     if not validar_entrada(texto_chamado):
+        log_evento(
+            "entrada_bloqueada",
+            {
+                "motivo": "Possível tentativa de manipulação do agente."
+            },
+        )
+
         raise ValueError(
             "Entrada bloqueada por regra de segurança."
         )
 
-    state["historico"].append(texto_chamado)
+    historico = state.get("historico", [])
+
+    if texto_chamado not in historico:
+        historico.append(texto_chamado)
+
+    state["historico"] = historico
+
+    log_evento(
+        "memoria_atualizada",
+        {
+            "total_interacoes": len(historico),
+        },
+    )
 
     log_evento(
         "tempo_analise",
-        {"segundos": round(time.time() - inicio, 4)},
+        {
+            "segundos": round(time.time() - inicio, 4),
+        },
     )
 
     return state
@@ -112,18 +143,26 @@ def avaliar_criticidade(state: IncidentState):
 
         log_evento(
             "criticidade_avaliada",
-            {"criticidade": criticidade},
+            {
+                "criticidade": criticidade,
+            },
         )
 
-        return {"criticidade": criticidade}
+        return {
+            "criticidade": criticidade,
+        }
 
     except Exception as erro:
         log_evento(
             "erro_llm_criticidade",
-            {"erro": str(erro)},
+            {
+                "erro": str(erro),
+            },
         )
 
-        return {"criticidade": "Média"}
+        return {
+            "criticidade": "Média",
+        }
 
 
 def avaliar_risco(state: IncidentState):
@@ -143,18 +182,26 @@ def avaliar_risco(state: IncidentState):
 
         log_evento(
             "risco_avaliado",
-            {"risco": risco},
+            {
+                "risco": risco,
+            },
         )
 
-        return {"risco": risco}
+        return {
+            "risco": risco,
+        }
 
     except Exception as erro:
         log_evento(
             "erro_llm_risco",
-            {"erro": str(erro)},
+            {
+                "erro": str(erro),
+            },
         )
 
-        return {"risco": "Médio"}
+        return {
+            "risco": "Médio",
+        }
 
 
 def avaliar_categoria(state: IncidentState):
@@ -174,58 +221,99 @@ def avaliar_categoria(state: IncidentState):
 
         log_evento(
             "categoria_avaliada",
-            {"categoria": categoria},
+            {
+                "categoria": categoria,
+            },
         )
 
-        return {"categoria": categoria}
+        return {
+            "categoria": categoria,
+        }
 
     except Exception as erro:
         log_evento(
             "erro_llm_categoria",
-            {"erro": str(erro)},
+            {
+                "erro": str(erro),
+            },
         )
 
-        return {"categoria": "Suporte"}
+        return {
+            "categoria": "Suporte",
+        }
 
 
 def consultar_sla_incidente(state: IncidentState):
     print("5. Consultando SLA...")
 
-    resultado = consultar_sla(state["criticidade"])
+    inicio = time.time()
+
+    resultado = consultar_sla(
+        state["criticidade"]
+    )
 
     log_evento(
         "tool_sla_executada",
         {
             "criticidade": state["criticidade"],
             "sucesso": resultado["sucesso"],
+            "tempo_segundos": round(
+                time.time() - inicio,
+                4,
+            ),
         },
     )
 
     if not resultado["sucesso"]:
-        return {"sla": "SLA não encontrado"}
+        return {
+            "sla": "SLA não encontrado",
+        }
 
-    return {"sla": resultado["sla"]}
+    return {
+        "sla": resultado["sla"],
+    }
 
 
 def consolidar_analise(state: IncidentState):
     print("6. Consolidando análise...")
+
+    log_evento(
+        "analise_consolidada",
+        {
+            "categoria": state["categoria"],
+            "criticidade": state["criticidade"],
+            "risco": state["risco"],
+            "sla": state["sla"],
+        },
+    )
+
     return state
 
 
 def decidir_fluxo(state: IncidentState):
     criticidade = state["criticidade"].strip().lower()
 
-    if criticidade in ["alta", "crítica", "critica"]:
+    if criticidade in [
+        "alta",
+        "crítica",
+        "critica",
+    ]:
         log_evento(
             "decisao_fluxo",
-            {"rota": "priorizar_incidente"},
+            {
+                "rota": "priorizar_incidente",
+            },
         )
+
         return "priorizar_incidente"
 
     log_evento(
         "decisao_fluxo",
-        {"rota": "gerar_diagnostico"},
+        {
+            "rota": "gerar_diagnostico",
+        },
     )
+
     return "gerar_diagnostico"
 
 
@@ -234,7 +322,10 @@ def priorizar_incidente(state: IncidentState):
 
     log_evento(
         "incidente_priorizado",
-        {"criticidade": state["criticidade"]},
+        {
+            "criticidade": state["criticidade"],
+            "risco": state["risco"],
+        },
     )
 
     return {}
@@ -243,24 +334,41 @@ def priorizar_incidente(state: IncidentState):
 def gerar_diagnostico(state: IncidentState):
     print("8. Gerando resposta estruturada...")
 
+    inicio = time.time()
+
     criticidade = state["criticidade"].strip()
     risco = state["risco"].strip()
     categoria = state["categoria"].strip()
 
     revisao_humana = (
-        criticidade.lower() in ["alta", "crítica", "critica"]
-        or risco.lower() in ["alto", "crítico", "critico"]
+        criticidade.lower()
+        in [
+            "alta",
+            "crítica",
+            "critica",
+        ]
+        or risco.lower()
+        in [
+            "alto",
+            "crítico",
+            "critico",
+        ]
     )
 
-    resumo = f"{state['titulo']}: {state['descricao']}"
+    resumo = (
+        f"{state['titulo']}: "
+        f"{state['descricao']}"
+    )
 
     if revisao_humana:
         acao_sugerida = (
-            "Priorizar o chamado e encaminhar para revisão humana."
+            "Priorizar o chamado e encaminhar "
+            "para revisão humana."
         )
     else:
         acao_sugerida = (
-            "Seguir o fluxo normal de atendimento conforme o SLA."
+            "Seguir o fluxo normal de atendimento "
+            "conforme o SLA."
         )
 
     state["resumo"] = resumo
@@ -275,6 +383,9 @@ def gerar_diagnostico(state: IncidentState):
         "acao_sugerida": acao_sugerida,
         "revisao_humana": revisao_humana,
         "sla": state["sla"],
+        "quantidade_interacoes": len(
+            state["historico"]
+        ),
     }
 
     state["diagnostico"] = json.dumps(
@@ -288,7 +399,12 @@ def gerar_diagnostico(state: IncidentState):
         {
             "categoria": categoria,
             "criticidade": criticidade,
+            "risco": risco,
             "revisao_humana": revisao_humana,
+            "tempo_segundos": round(
+                time.time() - inicio,
+                4,
+            ),
         },
     )
 
@@ -299,25 +415,60 @@ memory = MemorySaver()
 
 workflow = StateGraph(IncidentState)
 
-workflow.add_node("analisar_incidente", analisar_incidente)
-workflow.add_node("avaliar_criticidade", avaliar_criticidade)
-workflow.add_node("avaliar_risco", avaliar_risco)
-workflow.add_node("avaliar_categoria", avaliar_categoria)
-workflow.add_node("consultar_sla", consultar_sla_incidente)
-workflow.add_node("consolidar_analise", consolidar_analise)
-workflow.add_node("priorizar_incidente", priorizar_incidente)
-workflow.add_node("gerar_diagnostico", gerar_diagnostico)
+workflow.add_node(
+    "analisar_incidente",
+    analisar_incidente,
+)
 
-workflow.set_entry_point("analisar_incidente")
+workflow.add_node(
+    "avaliar_criticidade",
+    avaliar_criticidade,
+)
+
+workflow.add_node(
+    "avaliar_risco",
+    avaliar_risco,
+)
+
+workflow.add_node(
+    "avaliar_categoria",
+    avaliar_categoria,
+)
+
+workflow.add_node(
+    "consultar_sla",
+    consultar_sla_incidente,
+)
+
+workflow.add_node(
+    "consolidar_analise",
+    consolidar_analise,
+)
+
+workflow.add_node(
+    "priorizar_incidente",
+    priorizar_incidente,
+)
+
+workflow.add_node(
+    "gerar_diagnostico",
+    gerar_diagnostico,
+)
+
+workflow.set_entry_point(
+    "analisar_incidente"
+)
 
 workflow.add_edge(
     "analisar_incidente",
     "avaliar_criticidade",
 )
+
 workflow.add_edge(
     "analisar_incidente",
     "avaliar_risco",
 )
+
 workflow.add_edge(
     "analisar_incidente",
     "avaliar_categoria",
@@ -329,7 +480,11 @@ workflow.add_edge(
 )
 
 workflow.add_edge(
-    ["consultar_sla", "avaliar_risco", "avaliar_categoria"],
+    [
+        "consultar_sla",
+        "avaliar_risco",
+        "avaliar_categoria",
+    ],
     "consolidar_analise",
 )
 
@@ -337,8 +492,10 @@ workflow.add_conditional_edges(
     "consolidar_analise",
     decidir_fluxo,
     {
-        "priorizar_incidente": "priorizar_incidente",
-        "gerar_diagnostico": "gerar_diagnostico",
+        "priorizar_incidente":
+            "priorizar_incidente",
+        "gerar_diagnostico":
+            "gerar_diagnostico",
     },
 )
 
@@ -352,35 +509,94 @@ workflow.add_edge(
     END,
 )
 
-app = workflow.compile(checkpointer=memory)
+app = workflow.compile(
+    checkpointer=memory
+)
 
 
-if __name__ == "__main__":
-    estado_inicial = {
-        "titulo": "Erro 500 na API de usuários",
-        "descricao": "A API apresenta timeout após 30 segundos.",
+def criar_estado(
+    titulo: str,
+    descricao: str,
+    historico=None,
+):
+    return {
+        "titulo": titulo,
+        "descricao": descricao,
         "categoria": "",
         "criticidade": "",
         "risco": "",
         "sla": "",
-        "historico": [],
+        "historico": (
+            historico.copy()
+            if historico
+            else []
+        ),
         "resumo": "",
         "acao_sugerida": "",
         "revisao_humana": False,
         "diagnostico": "",
     }
 
+
+if __name__ == "__main__":
     config = {
         "configurable": {
-            "thread_id": "incidente-001"
+            "thread_id": "incidente-001",
         }
     }
 
-    resultado = app.invoke(
-        estado_inicial,
+    primeiro_incidente = criar_estado(
+        titulo="Erro 500 na API de usuários",
+        descricao=(
+            "A API apresenta timeout "
+            "após 30 segundos."
+        ),
+    )
+
+    resultado_1 = app.invoke(
+        primeiro_incidente,
         config=config,
     )
 
-    print("\nResultado final:")
-    print(resultado["diagnostico"])
-    print("Histórico:", resultado["historico"])
+    print(
+        "\n=== PRIMEIRA INTERAÇÃO ==="
+    )
+
+    print(
+        resultado_1["diagnostico"]
+    )
+
+    segundo_incidente = criar_estado(
+        titulo="Persistência do erro",
+        descricao=(
+            "O problema informado anteriormente "
+            "continua ocorrendo mesmo após "
+            "reiniciar o serviço."
+        ),
+        historico=resultado_1["historico"],
+    )
+
+    resultado_2 = app.invoke(
+        segundo_incidente,
+        config=config,
+    )
+
+    print(
+        "\n=== SEGUNDA INTERAÇÃO ==="
+    )
+
+    print(
+        resultado_2["diagnostico"]
+    )
+
+    print(
+        "\n=== MEMÓRIA / CONTEXTO ACUMULADO ==="
+    )
+
+    for indice, item in enumerate(
+        resultado_2["historico"],
+        start=1,
+    ):
+        print(
+            f"{indice}. {item}"
+        )
