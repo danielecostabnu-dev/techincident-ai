@@ -1,0 +1,45 @@
+{
+"name": "TechIncident AI - Integracao n8n",
+"nodes": [
+{
+"parameters": {
+"httpMethod": "POST",
+"path": "techincident",
+"responseMode": "responseNode",
+"options": {}
+},
+"id": "1",
+"name": "Webhook",
+"type": "n8n-nodes-base.webhook",
+"typeVersion": 2,
+"position": [300, 300]
+},
+{
+"parameters": {
+"respondWith": "json",
+"responseBody": "={ \"status\": \"recebido\", \"incidente\": $json.body.incidente }",
+"options": {}
+},
+"id": "2",
+"name": "Respond to Webhook",
+"type": "n8n-nodes-base.respondToWebhook",
+"typeVersion": 1.4,
+"position": [560, 300]
+}
+],
+"connections": {
+"Webhook": {
+"main": [
+[
+{
+"node": "Respond to Webhook",
+"type": "main",
+"index": 0
+}
+]
+]
+}
+},
+"active": false,
+"settings": {}
+}
