@@ -85,3 +85,60 @@ Também foi utilizada para apoiar a criação e o refinamento dos testes automat
 O cenário de integração foi priorizado por possuir maior impacto sobre a solução, pois valida conjuntamente o fluxo do agente, a classificação do incidente, a avaliação de risco e a consulta de SLA. Uma falha nesse fluxo comprometeria diretamente o resultado principal da aplicação.
 
 Durante a revisão do projeto também foram identificadas oportunidades de melhoria relacionadas à resiliência da integração com a LLM. Como resultado, foram adicionados timeout, tentativas limitadas e fallback para permitir que o fluxo continue de forma controlada em caso de indisponibilidade do serviço externo.
+
+## Memória e contexto entre interações
+
+## Memória e contexto entre interações
+
+O TechIncident AI utiliza o MemorySaver do LangGraph para manter o estado e o histórico das interações durante a execução do agente.
+
+O histórico permite que informações de interações anteriores sejam consideradas no contexto do incidente, evitando que cada etapa seja tratada de forma totalmente isolada.
+
+Cada execução utiliza um identificador de thread, permitindo que o MemorySaver associe o estado salvo à mesma conversa e preserve o contexto entre as interações.
+
+A memória é utilizada como contexto operacional do agente, enquanto informações sensíveis, como a GROQ_API_KEY, permanecem fora do histórico e são carregadas por variável de ambiente.
+
+## Segurança
+
+O projeto possui validações para reduzir riscos relacionados a entradas adversariais e prompt injection. Antes do processamento do incidente, a entrada é validada para identificar instruções suspeitas que tentem alterar o comportamento esperado do agente ou solicitar informações sensíveis.
+
+Entre os padrões bloqueados estão solicitações para ignorar instruções anteriores, revelar chaves ou acessar informações relacionadas à GROQ_API_KEY.
+
+As credenciais utilizadas pela aplicação não são armazenadas diretamente no código-fonte. A GROQ_API_KEY é carregada por variável de ambiente através do arquivo `.env`, que não deve ser versionado no repositório.
+
+O projeto também possui teste automatizado específico para validar o bloqueio de tentativa de prompt injection.
+
+## Observabilidade
+
+O fluxo do agente possui registros que permitem acompanhar etapas relevantes da execução e apoiar a identificação de falhas durante o processamento dos incidentes.
+
+Além do resultado produzido pelo agente, a execução pode ser acompanhada por sinais relacionados ao fluxo e às decisões realizadas durante a análise, permitindo identificar comportamentos inesperados e apoiar o diagnóstico de problemas.
+
+A integração com a LLM também possui mecanismos de resiliência, incluindo timeout, tentativas limitadas e fallback, reduzindo o impacto de indisponibilidades do serviço externo.
+
+## Integração low-code com n8n
+
+O projeto possui uma representação exportável de workflow n8n disponível em `docs/workflow-n8n.json`.
+
+O workflow utiliza um Webhook para receber informações de incidentes e um nó de resposta para retornar o resultado da requisição.
+
+A documentação complementar da integração está disponível em `docs/integracao-n8n.md`.
+
+Essa integração demonstra como o TechIncident AI pode ser conectado a uma ferramenta low-code para receber incidentes provenientes de outros sistemas e integrar o agente a fluxos de automação.
+
+## Arquitetura
+
+A arquitetura e o fluxo da solução estão documentados em `docs/arquitetura.md`.
+
+O fluxo principal utiliza LangGraph para organizar as etapas de análise do incidente, incluindo validação da entrada, análise, classificação de criticidade, avaliação de risco, categorização, consulta de SLA, consolidação das informações, priorização e geração do diagnóstico.
+
+A consulta de SLA é implementada como uma ferramenta separada do fluxo principal, permitindo que essa responsabilidade seja reutilizada e testada de forma independente.
+
+## Testes automatizados
+
+Os testes automatizados estão localizados no diretório `tests`.
+
+Para executar os testes:
+
+```bash
+python -m pytest -v
