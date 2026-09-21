@@ -19,15 +19,22 @@ llm = ChatGroq(
     max_retries=2,
 )
 
+metricas_eventos = {}
+
 
 def log_evento(evento: str, detalhes: dict):
+    metricas_eventos[evento] = metricas_eventos.get(evento, 0) + 1
+
     registro = {
         "evento": evento,
         "timestamp": time.time(),
         "detalhes": detalhes,
+        "metricas": {
+            "total_evento": metricas_eventos[evento],
+        },
     }
-    print(json.dumps(registro, ensure_ascii=False))
 
+    print(json.dumps(registro, ensure_ascii=False))
 
 class IncidentState(TypedDict):
     titulo: str
