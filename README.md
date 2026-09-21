@@ -142,3 +142,44 @@ Para executar os testes:
 
 ```bash
 python -m pytest -v
+
+## Melhorias implementadas após validação
+
+Após a primeira validação do projeto, foram realizadas melhorias para ampliar a robustez e a demonstração dos requisitos da solução.
+
+### Memória e contexto
+
+O agente utiliza histórico de interações para manter contexto entre incidentes. Informações anteriores podem ser consideradas durante a análise e a avaliação de criticidade, permitindo que a memória participe das decisões do fluxo.
+
+### Segurança
+
+A validação de entrada possui proteção contra diferentes padrões de prompt injection e tentativas de acesso a informações sensíveis, incluindo solicitações relacionadas a instruções internas, prompts do sistema e chaves de API.
+
+Entradas identificadas como suspeitas são bloqueadas antes da continuidade da análise.
+
+### Tool de SLA
+
+A consulta de SLA possui uma camada de abstração responsável pelo acesso às políticas de atendimento. Essa separação permite reutilização, manutenção e testes independentes da ferramenta.
+
+A ferramenta retorna dados estruturados contendo criticidade, prazo em horas, SLA e origem da política utilizada.
+
+### Observabilidade
+
+A solução utiliza logs estruturados em JSON para registrar eventos relevantes durante a execução do agente.
+
+Além dos logs, cada evento possui uma métrica correlacionada que contabiliza suas ocorrências. Dessa forma, a observabilidade utiliza dois sinais relacionados:
+
+- eventos estruturados com timestamp e detalhes;
+- métricas de quantidade de ocorrências por evento.
+
+### Integração com n8n
+
+O projeto inclui um workflow exportável do n8n no arquivo `docs/workflow-n8n.json`.
+
+A documentação da integração está disponível em `docs/integracao-n8n.md`, demonstrando a proposta de automação low-code para entrada e tratamento de incidentes.
+
+### Qualidade e integração contínua
+
+Os testes automatizados validam cenários do agente, segurança e consulta de SLA.
+
+A integração contínua é executada pelo GitHub Actions, realizando automaticamente as verificações configuradas no projeto a cada atualização das branches monitoradas.
