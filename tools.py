@@ -10,24 +10,41 @@ class SLAResult(TypedDict, total=False):
     erro: str
 
 
-POLITICA_SLA = {
-    "baixa": {
-        "sla": "24 horas",
-        "horas": 24,
-    },
-    "media": {
-        "sla": "8 horas",
-        "horas": 8,
-    },
-    "alta": {
-        "sla": "4 horas",
-        "horas": 4,
-    },
-    "critica": {
-        "sla": "1 hora",
-        "horas": 1,
-    },
-}
+class RepositorioSLA:
+    """
+    Camada responsável pelo acesso às políticas de SLA.
+
+    Nesta versão, os dados são mantidos em memória para fins
+    acadêmicos. A abstração permite substituir futuramente essa
+    fonte por banco de dados, API ou outro serviço externo sem
+    alterar a ferramenta consultar_sla.
+    """
+
+    def __init__(self):
+        self._politicas = {
+            "baixa": {
+                "sla": "24 horas",
+                "horas": 24,
+            },
+            "media": {
+                "sla": "8 horas",
+                "horas": 8,
+            },
+            "alta": {
+                "sla": "4 horas",
+                "horas": 4,
+            },
+            "critica": {
+                "sla": "1 hora",
+                "horas": 1,
+            },
+        }
+
+    def buscar_por_criticidade(self, criticidade: str):
+        return self._politicas.get(criticidade)
+
+
+repositorio_sla = RepositorioSLA()
 
 
 def normalizar_criticidade(criticidade: str) -> str:
@@ -46,15 +63,10 @@ def normalizar_criticidade(criticidade: str) -> str:
 
 def consultar_sla(criticidade: str) -> SLAResult:
     """
-    Consulta a política interna de SLA de acordo com a criticidade
-    classificada pelo agente.
+    Tool responsável por consultar o SLA de um incidente.
 
-    Entrada:
-        criticidade: Baixa, Média, Alta ou Crítica.
-
-    Saída:
-        dicionário estruturado contendo sucesso, SLA, horas e fonte.
-        Em caso de parâmetro inválido, retorna erro controlado.
+    A função atua como interface entre o agente e a camada
+    responsável pelas políticas de SLA.
     """
 
     if not isinstance(criticidade, str):
@@ -71,7 +83,9 @@ def consultar_sla(criticidade: str) -> SLAResult:
 
     chave = normalizar_criticidade(criticidade)
 
-    if chave not in POLITICA_SLA:
+    politica = repositorio_sla.buscar_por_criticidade(chave)
+
+    if politica is None:
         return {
             "sucesso": False,
             "erro": (
@@ -79,8 +93,6 @@ def consultar_sla(criticidade: str) -> SLAResult:
                 "Valores aceitos: Baixa, Média, Alta ou Crítica."
             ),
         }
-
-    politica = POLITICA_SLA[chave]
 
     return {
         "sucesso": True,
