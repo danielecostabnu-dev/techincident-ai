@@ -131,12 +131,37 @@ def avaliar_criticidade(state: IncidentState):
 
     texto_chamado = f"{state['titulo']}. {state['descricao']}"
 
+    historico = state.get("historico", [])
+
+    contexto_anterior = [
+        item
+        for item in historico
+        if item != texto_chamado
+    ]
+
+    if contexto_anterior:
+        contexto = "\n".join(contexto_anterior[-3:])
+    else:
+        contexto = "Nenhum incidente anterior relacionado."
+
+    log_evento(
+        "contexto_consultado",
+        {
+            "interacoes_anteriores": len(contexto_anterior),
+            "contexto_utilizado": contexto,
+        },
+    )
+
     try:
         resposta = llm.invoke(
             f"Classifique a criticidade deste chamado técnico como "
             f"Baixa, Média, Alta ou Crítica. "
-            f"Responda somente com uma palavra, sem justificativa. "
-            f"Chamado: {texto_chamado}"
+            f"Considere também o histórico de interações anteriores, "
+            f"pois recorrência ou persistência do problema pode "
+            f"influenciar a criticidade. "
+            f"Responda somente com uma palavra, sem justificativa.\n\n"
+            f"Histórico anterior:\n{contexto}\n\n"
+            f"Chamado atual:\n{texto_chamado}"
         )
 
         criticidade = resposta.content.strip()
@@ -145,6 +170,7 @@ def avaliar_criticidade(state: IncidentState):
             "criticidade_avaliada",
             {
                 "criticidade": criticidade,
+                "historico_considerado": bool(contexto_anterior),
             },
         )
 
